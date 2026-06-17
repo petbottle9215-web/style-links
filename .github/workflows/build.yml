@@ -1,0 +1,52 @@
+name: Build Signed AAB
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up NodeJS
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18
+
+    - name: Setup Project and Capacitor
+      run: |
+        npm init -y
+        npm install @capacitor/core @capacitor/cli @capacitor/android
+        npx cap init "Style Link" "com.ceakle.stylelink" --web-dir=www
+        npx cap add android
+        npx cap sync android
+
+    - name: Generate Keystore
+      run: |
+        keytool -genkey -v -keystore release.keystore -alias stylelink -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=StyleLink, OU=Salon, O=Ceakle, L=Lahore, S=Punjab, C=PK"
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+
+    - name: Build Android App
+      run: |
+        cd android
+        ./gradlew bundleRelease
+
+    - name: Sign AAB File
+      run: |
+        jarsigner -keystore release.keystore -storepass 123456 -keypass 123456 android/app/build/outputs/bundle/release/app-release.aab stylelink
+
+    - name: Upload Signed AAB
+      uses: actions/upload-artifact@v4
+      with:
+        name: Signed-AAB-File
+        path: android/app/build/outputs/bundle/release/app-release.aab
